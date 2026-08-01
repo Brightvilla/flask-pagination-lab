@@ -1,40 +1,47 @@
-#!/usr/bin/env python3
+from flask import Flask
+from flask_migrate import Migrate
+from flask_restful import Api
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import MetaData
 
-from random import randint, choice as rc
+class Config:
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JSON_SORT_KEYS = False
 
-from faker import Faker
-import os
-from app import create_app
-from models import db, Book
+class DevConfig(Config):
+    SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+    DEBUG = True
 
-fake = Faker()
+class TestConfig(Config):
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    TESTING = True
 
-env = os.getenv("FLASK_ENV", "dev")
-app = create_app(env)
+config_dict = {
+    "dev": DevConfig,
+    "test": TestConfig,
+}
 
-with app.app_context():
+metadata = MetaData(
+    naming_convention={
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    }
+)
 
-    print("Deleting all books...")
-    Book.query.delete()
+db = SQLAlchemy(metadata=metadata)
+migrate = Migrate()
+api = Api()
 
-    fake = Faker()
 
-    print("Creating books...")
-    books = []
-    for i in range(500):
-        title = fake.sentence(nb_words=4)
-        author = fake.name()
-        description = fake.paragraph(nb_sentences=5)
-        
-        book = Book(
-            title=title,
-            author=author,
-            description=description
-        )
+def create_app(env: str = "dev"):
+    """
+    Application factory used by tests and by running the server.
+    """
+    app = Flask(__name__)
+    app.config.from_object(config_dict[env])
+    app.json.compact = False
 
-        books.append(book)
+    db.init_app(app)
+    migrate.init_app(app, db)
+    api.init_app(app)
 
-    db.session.add_all(books)
-    
-    db.session.commit()
-    print("Complete.")
+    return app

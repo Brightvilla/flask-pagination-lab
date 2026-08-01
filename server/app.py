@@ -1,32 +1,64 @@
-#!/usr/bin/env python3
-
-from flask import request, session, jsonify, make_response
-from flask_restful import Resource
-from sqlalchemy.exc import IntegrityError
-
-import os
-from config import create_app, db, api
-from models import Book, BookSchema
-
-env = os.getenv("FLASK_ENV", "dev")
-app = create_app(env)
-
-class Books(Resource):
-    def get(self):
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 5, type=int)
-        pagination = Book.query.paginate(page=page, per_page=per_page, error_out=False)
-        return {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'total_pages': pagination.pages,
-            'items': [BookSchema().dump(b) for b in pagination.items]
-        }, 200
+from flask import Flask, jsonify, request
+from models import db, Book
 
 
-api.add_resource(Books, '/books', endpoint='books')
+def create_app(config_name="development"):
+    app = Flask(__name__)
+
+    # Basic configuration: use in‑memory DB for tests, file DB otherwise
+    if config_name == "test":
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+    else:
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    db.init_app(app)
+
+    @app.route("/books", methods=["GET"])
+    def get_books():
+        """
+        Return paginated list of books.
+
+        Query parameters:
+          - page (default 1)
+          - per_page (default 5)
+        """
+        # Get query params with safe fallbacks
+        try:
+            page = int(request.args.get("page", 1))
+        except (TypeError, ValueError):
+            page = 1
+
+        try:
+            per_page = int(request.args.get("per_page", 5))
+        except (TypeError, ValueError):
+            per_page = 5
+
+        pagination = Book.query.order_by(Book.id).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False,  # don't raise 404 if page is out of range
+        )
+
+        items = [book.to_dict() for book in pagination.items]
+
+        response = {
+            "page": page,
+            "per_page": per_page,
+            "total": pagination.total,
+            "total_pages": pagination.pages,
+            "items": items,
+        }
+
+        return jsonify(response), 200
+
+    return app
 
 
-if __name__ == '__main__':
+# Allow running the server directly: `python app.py`
+if __name__ == "__main__":
+    app = create_app()
+    with app.app_context():
+        db.create_all()
     app.run(port=5555, debug=True)

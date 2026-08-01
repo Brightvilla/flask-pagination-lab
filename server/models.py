@@ -1,22 +1,18 @@
-from sqlalchemy.orm import validates
-from sqlalchemy.ext.hybrid import hybrid_property
-from marshmallow import Schema, fields
+from flask_sqlalchemy import SQLAlchemy
 
-from config import db
+db = SQLAlchemy()
+
 
 class Book(db.Model):
-    __tablename__ = 'books'
+    __tablename__ = "books"
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String, nullable=False)
-    author = db.Column(db.String)
-    description = db.Column(db.String)
+    author = db.Column(db.String, nullable=False)
 
-    def __repr__(self):
-        return f'<Book {self.id}: {self.title}>'
-
-class BookSchema(Schema):
-    id = fields.Int()
-    title = fields.String()
-    author = fields.String()
-    description = fields.String()
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "author": self.author,
+        }

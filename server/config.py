@@ -1,10 +1,8 @@
-# app_config.py
 from flask import Flask
 from flask_migrate import Migrate
 from flask_restful import Api
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
-import os
 
 class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -23,11 +21,21 @@ config_dict = {
     "test": TestConfig,
 }
 
-metadata = MetaData(naming_convention={
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-})
+metadata = MetaData(
+    naming_convention={
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    }
+)
 
-def create_app(env="dev"):
+db = SQLAlchemy(metadata=metadata)
+migrate = Migrate()
+api = Api()
+
+
+def create_app(env: str = "dev"):
+    """
+    Application factory used by tests and by running the server.
+    """
     app = Flask(__name__)
     app.config.from_object(config_dict[env])
     app.json.compact = False
@@ -37,7 +45,3 @@ def create_app(env="dev"):
     api.init_app(app)
 
     return app
-
-db = SQLAlchemy(metadata=metadata)
-migrate = Migrate()
-api = Api()
